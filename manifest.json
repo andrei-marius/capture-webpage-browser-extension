@@ -1,0 +1,34 @@
+{
+  "name": "Page Capture",
+  "version": "1.0",
+  "manifest_version": 3,
+  "permissions": [
+    "activeTab", 
+    "scripting", 
+    "downloads", 
+    "pageCapture", 
+    "tabs", 
+    "storage",
+    "unlimitedStorage",
+    "debugger"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost:5173/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_title": "Capture Page",
+    "default_popup": "popup.html"
+  },
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "externally_connectable": {
+    "matches": ["http://localhost:5173/*"]
+  }
+}
