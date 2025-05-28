@@ -60,7 +60,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (!tab) {
           throw new Error("No active tab found");
         }
-
+  
+        await new Promise((resolve) => {
+          const onUpdated = (tabId, changeInfo) => {
+            if (tabId === tab.id && changeInfo.status === 'complete') {
+              chrome.tabs.onUpdated.removeListener(onUpdated);
+              resolve();
+            }
+          };
+          chrome.tabs.onUpdated.addListener(onUpdated);
+          
+          if (tab.status === 'complete') resolve();
+        });
+  
+        await new Promise(resolve => setTimeout(resolve, 500));
+  
         const captureData = await capturePage(tab);
 
         // const screenshotBase64 = await blobToBase64(captureData.screenshot);
@@ -213,16 +227,6 @@ function cleanMHTMLContent(text) {
 }
 
 function extractMetadata(mhtmlContent, tabUrl = "", tabTitle = "") {
-  const metadata = {
-    url: tabUrl,
-    title: tabTitle,
-    description: "",
-    timestamp: Date.now(),
-    ogTitle: "",
-    ogDescription: "",
-    keywords: "",
-  };
-
   const cleanedContent = cleanMHTMLContent(mhtmlContent);
 
   const extractMeta = (name, attribute = "name") => {
@@ -234,26 +238,32 @@ function extractMetadata(mhtmlContent, tabUrl = "", tabTitle = "") {
     return match ? cleanMHTMLContent(match[1]) : "";
   };
 
-  metadata.description = extractMeta("description");
-  metadata.keywords = extractMeta("keywords");
-
-  metadata.ogTitle = extractMeta("og:title", "property") || metadata.title;
-  metadata.ogDescription =
-    extractMeta("og:description", "property") || metadata.description;
+  let title = tabTitle || "";
+  let description = extractMeta("description") || "";
+  const ogTitle = extractMeta("og:title", "property");
+  const ogDescription = extractMeta("og:description", "property");
 
   const titleMatch = cleanedContent.match(/<title>([^<]*)<\/title>/i);
   if (titleMatch) {
     const pageTitle = cleanMHTMLContent(titleMatch[1]);
-    metadata.title = pageTitle || metadata.title;
-    metadata.ogTitle = metadata.ogTitle || pageTitle;
+    title = title || pageTitle;
   }
 
-  if (metadata.keywords) {
-    metadata.keywords = metadata.keywords
-      .replace(/\s*,\s*/g, ", ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
+  // Fallback: if no title or description, use Open Graph ones
+  if (!title && ogTitle) title = ogTitle;
+  if (!description && ogDescription) description = ogDescription;
 
-  return metadata;
+  const keywords = extractMeta("keywords")
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return {
+    url: tabUrl || null,
+    title: title || null,
+    description: description || null,
+    keywords: keywords || null,
+    timestamp: Date.now()
+  };
 }
+
